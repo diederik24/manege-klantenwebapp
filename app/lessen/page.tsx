@@ -101,13 +101,21 @@ export default function LessenPage() {
       console.log('Session found:', session.user.email)
 
       try {
-        const apiKey = getApiKey()
-        if (!apiKey) {
-          router.push('/login')
-          return
+        // Gebruik Supabase Auth session token in plaats van API key
+        // Voor nu tonen we een lege lijst - lessen kunnen later worden toegevoegd via Supabase
+        const data = {
+          lessons: [],
+          leskaarten: [],
+          customer: {
+            name: 'Klant',
+            email: session.user.email || '',
+            balance: 0
+          },
+          totaalResterendeLessen: 0
         }
-
-        const data = await getCustomerData(apiKey)
+        
+        // TODO: Haal lessen op via Supabase RPC of directe query
+        // Voor nu tonen we een lege lijst zodat de pagina werkt zonder API key
         
         // Transform API lessons to our format
         const transformedLessons: Lesson[] = data.lessons.map((les: any) => ({
@@ -139,35 +147,26 @@ export default function LessenPage() {
   }, [router])
 
   const handleLessonAction = async (lessonId: string, isEnrolled: boolean) => {
-    const apiKey = getApiKey()
-    if (!apiKey) {
+    if (!supabaseClient) {
+      alert('Supabase client niet beschikbaar')
+      return
+    }
+
+    // Check session
+    const { data: { session } } = await supabaseClient.auth.getSession()
+    if (!session) {
       router.push('/login')
       return
     }
 
     setProcessing(lessonId)
     try {
-      if (isEnrolled) {
-        await cancelLesson(apiKey, lessonId)
-      } else {
-        await enrollLesson(apiKey, lessonId)
-      }
+      // TODO: Implementeer lessen aanmelden/afmelden via Supabase
+      // Voor nu tonen we alleen een melding
+      alert(isEnrolled ? 'Afmelden functionaliteit komt binnenkort' : 'Aanmelden functionaliteit komt binnenkort')
       
-      // Refresh data
-      const data = await getCustomerData(apiKey)
-      const transformedLessons: Lesson[] = data.lessons.map((les: any) => ({
-        id: les.id || les.name,
-        name: les.name,
-        day: les.day,
-        time: les.time,
-        instructor: les.instructor,
-        date: les.date,
-        location: les.location || 'Binnenbak',
-        type: les.type || 'Groepsles',
-        participants: les.participants || '0/0 deelnemers',
-        enrolled: les.enrolled || false
-      }))
-      setLessons(transformedLessons)
+      // Refresh data zou hier moeten gebeuren
+      // setLessons(transformedLessons)
     } catch (err: any) {
       alert(err.message || 'Er is een fout opgetreden')
     } finally {
