@@ -113,12 +113,13 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo en Header */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-md">
-            <span className="text-4xl">🐴</span>
+          <div className="mb-4">
+            <img 
+              src="/Logo.png" 
+              alt="Manege Duikse Hoef Logo" 
+              className="h-24 w-auto object-contain"
+            />
           </div>
-          <h2 className="text-primary text-sm font-bold uppercase tracking-wide mb-2">
-            MANEGE DUIKSE HOEF
-          </h2>
           <h1 className="text-3xl font-bold text-black mb-2">Welkom</h1>
         </div>
 
