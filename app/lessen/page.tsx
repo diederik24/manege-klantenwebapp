@@ -101,21 +101,61 @@ export default function LessenPage() {
       console.log('Session found:', session.user.email)
 
       try {
-        // Gebruik Supabase Auth session token in plaats van API key
-        // Voor nu tonen we een lege lijst - lessen kunnen later worden toegevoegd via Supabase
-        const data = {
-          lessons: [],
-          leskaarten: [],
-          customer: {
-            name: 'Klant',
-            email: session.user.email || '',
-            balance: 0
-          },
-          totaalResterendeLessen: 0
+        // Haal member_id op via customer_accounts
+        const { data: accountData } = await supabaseClient
+          .from('customer_accounts')
+          .select('member_id')
+          .eq('auth_user_id', session.user.id)
+          .single()
+
+        if (!accountData?.member_id) {
+          console.log('No member_id found for user')
+          setLessons([])
+          setLoading(false)
+          return
         }
+
+        // Haal lessen op via lesson_participants
+        const { data: lessonParticipants, error: participantsError } = await supabaseClient
+          .from('lesson_participants')
+          .select(`
+            recurring_lesson_id,
+            recurring_lessons:recurring_lesson_id (
+              id,
+              name,
+              day_of_week,
+              time,
+              type,
+              instructor
+            )
+          `)
+          .eq('member_id', accountData.member_id)
+
+        if (participantsError) {
+          console.error('Error fetching lessons:', participantsError)
+        }
+
+        // Format lessons
+        const days = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag']
+        const transformedLessons: Lesson[] = (lessonParticipants || [])
+          .filter((lp: any) => lp.recurring_lessons)
+          .map((lp: any) => {
+            const lesson = lp.recurring_lessons
+            return {
+              id: lesson.id,
+              name: lesson.name,
+              day: days[lesson.day_of_week] || 'Onbekend',
+              time: lesson.time || '',
+              instructor: lesson.instructor || '',
+              date: new Date().toISOString(), // Placeholder - zou moeten worden berekend op basis van day_of_week
+              location: 'Binnenbak',
+              type: lesson.type || 'Groepsles',
+              participants: '0/0 deelnemers',
+              enrolled: true
+            }
+          })
         
-        // TODO: Haal lessen op via Supabase RPC of directe query
-        // Voor nu tonen we een lege lijst zodat de pagina werkt zonder API key
+        setLessons(transformedLessons)
         
         // Transform API lessons to our format
         const transformedLessons: Lesson[] = data.lessons.map((les: any) => ({
