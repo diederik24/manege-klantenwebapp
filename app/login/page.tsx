@@ -2,43 +2,78 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { setApiKey } from '@/lib/auth'
-import { getCustomerData } from '@/lib/api'
+import { supabaseClient } from '@/lib/supabase-client'
+
+type LoginMethod = 'password' | 'magiclink'
 
 export default function LoginPage() {
-  const [apiKey, setApiKeyInput] = useState('')
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('password')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setSuccess('')
     setLoading(true)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/43d83abe-87cf-49d2-9be1-d1ae6b8f86c9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/login/page.tsx:14',message:'handleLogin entry',data:{apiKeyLength:apiKey?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
+
+    if (!supabaseClient) {
+      setError('Supabase client niet geconfigureerd')
+      setLoading(false)
+      return
+    }
 
     try {
-      // Test de API key door data op te halen
-      await getCustomerData(apiKey)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/43d83abe-87cf-49d2-9be1-d1ae6b8f86c9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/login/page.tsx:22',message:'getCustomerData success',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
-      // Sla API key op
-      setApiKey(apiKey)
-      
-      // Redirect naar home
-      router.push('/home')
+      const { data, error: signInError } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (signInError) throw signInError
+
+      if (data.user) {
+        // Redirect naar home
+        router.push('/home')
+      }
     } catch (err: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/43d83abe-87cf-49d2-9be1-d1ae6b8f86c9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/login/page.tsx:28',message:'Login error',data:{errorName:err?.name,errorMessage:err?.message,errorStack:err?.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C,D'})}).catch(()=>{});
-      // #endregion
-      console.error('Login error:', err);
-      // Show more detailed error message
-      const errorMessage = err.message || 'Ongeldige API key. Controleer je key en probeer opnieuw.';
-      setError(errorMessage);
+      console.error('Login error:', err)
+      setError(err.message || 'Fout bij inloggen. Controleer je email en wachtwoord.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMagicLinkLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+    setLoading(true)
+
+    if (!supabaseClient) {
+      setError('Supabase client niet geconfigureerd')
+      setLoading(false)
+      return
+    }
+
+    try {
+      const { error: magicLinkError } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/home`,
+        },
+      })
+
+      if (magicLinkError) throw magicLinkError
+
+      setSuccess('Check je email! We hebben een inloglink gestuurd naar ' + email)
+      setEmail('')
+    } catch (err: any) {
+      console.error('Magic link error:', err)
+      setError(err.message || 'Fout bij versturen van inloglink. Probeer het opnieuw.')
     } finally {
       setLoading(false)
     }
@@ -52,33 +87,118 @@ export default function LoginPage() {
             <span className="text-white text-2xl font-bold">M</span>
           </div>
           <h1 className="text-3xl font-bold text-black mb-2">Manege Duikse Hoef</h1>
-          <p className="text-gray-600 text-sm">Log in met je API key</p>
+          <p className="text-gray-600 text-sm">Log in met je account</p>
         </div>
         
-        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-lg p-6">
+        {/* Login Method Toggle */}
+        <div className="mb-6 bg-gray-100 rounded-lg p-1 flex">
+          <button
+            type="button"
+            onClick={() => {
+              setLoginMethod('password')
+              setError('')
+              setSuccess('')
+            }}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition ${
+              loginMethod === 'password'
+                ? 'bg-white text-primary shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Email & Wachtwoord
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLoginMethod('magiclink')
+              setError('')
+              setSuccess('')
+            }}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition ${
+              loginMethod === 'magiclink'
+                ? 'bg-white text-primary shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Eenmalige Mailcode
+          </button>
+        </div>
+
+        <form 
+          onSubmit={loginMethod === 'password' ? handlePasswordLogin : handleMagicLinkLogin} 
+          className="bg-white rounded-2xl shadow-lg p-6"
+        >
           <div className="mb-4">
-            <label className="block text-black font-medium mb-2">API Key</label>
+            <label className="block text-black font-medium mb-2">Email</label>
             <input
-              type="text"
-              value={apiKey}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder="Voer je API key in"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="jouw@email.nl"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
           </div>
 
+          {loginMethod === 'password' && (
+            <div className="mb-4">
+              <label className="block text-black font-medium mb-2">Wachtwoord</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+                minLength={6}
+              />
+            </div>
+          )}
+
           {error && (
-            <div className="mb-4 text-red-500 text-sm">{error}</div>
+            <div className="mb-4 bg-red-50 text-red-700 text-sm p-3 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-4 bg-green-50 text-green-700 text-sm p-3 rounded-lg">
+              {success}
+            </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary-dark transition disabled:opacity-50"
+            className="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary-dark transition disabled:opacity-50 mb-4"
           >
-            {loading ? 'Laden...' : 'Inloggen'}
+            {loading 
+              ? 'Laden...' 
+              : loginMethod === 'password' 
+                ? 'Inloggen' 
+                : 'Stuur inloglink'}
           </button>
+
+          {loginMethod === 'password' && (
+            <button
+              type="button"
+              onClick={() => {
+                setLoginMethod('magiclink')
+                setError('')
+                setSuccess('')
+              }}
+              className="w-full text-primary text-sm font-medium"
+            >
+              Inloggen met eenmalige mailcode
+            </button>
+          )}
+
+          {loginMethod === 'magiclink' && (
+            <div className="text-center text-sm text-gray-600">
+              <p>We sturen je een veilige inloglink naar je email.</p>
+              <p className="mt-2">Klik op de link in de email om in te loggen.</p>
+            </div>
+          )}
         </form>
       </div>
     </div>
