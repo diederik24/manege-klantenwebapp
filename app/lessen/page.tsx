@@ -5,6 +5,7 @@ import BottomNav from '@/components/BottomNav'
 import { getCustomerData, cancelLesson, enrollLesson } from '@/lib/api'
 import { getApiKey } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
+import { supabaseClient } from '@/lib/supabase-client'
 
 // Helper function to get week dates
 const getWeekDates = () => {
@@ -76,6 +77,19 @@ export default function LessenPage() {
 
   useEffect(() => {
     async function fetchData() {
+      // Check Supabase Auth eerst
+      if (!supabaseClient) {
+        router.push('/login')
+        return
+      }
+
+      const { data: { session } } = await supabaseClient.auth.getSession()
+      
+      if (!session) {
+        router.push('/login')
+        return
+      }
+
       try {
         const apiKey = getApiKey()
         if (!apiKey) {

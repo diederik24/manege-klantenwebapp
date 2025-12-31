@@ -1,9 +1,46 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import BottomNav from '@/components/BottomNav'
 import Link from 'next/link'
+import { supabaseClient } from '@/lib/supabase-client'
+import { useRouter } from 'next/navigation'
 
 export default function ProfielPage() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
+
+  useEffect(() => {
+    async function checkAuth() {
+      if (!supabaseClient) {
+        router.push('/login')
+        return
+      }
+
+      const { data: { session } } = await supabaseClient.auth.getSession()
+      
+      if (!session) {
+        router.push('/login')
+        return
+      }
+
+      setUser(session.user)
+      setLoading(false)
+    }
+
+    checkAuth()
+  }, [router])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white pb-20 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-primary text-xl font-bold">Laden...</div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="min-h-screen bg-white pb-20">
       {/* Header */}
@@ -17,8 +54,10 @@ export default function ProfielPage() {
           <div className="w-24 h-24 bg-primary rounded-full flex items-center justify-center mb-4">
             <span className="text-white text-4xl font-bold">B</span>
           </div>
-          <h2 className="text-xl font-bold text-black mb-1">Beheerder</h2>
-          <p className="text-gray-600 text-sm mb-4">admin@manege.nl</p>
+          <h2 className="text-xl font-bold text-black mb-1">
+            {user?.email?.split('@')[0] || 'Gebruiker'}
+          </h2>
+          <p className="text-gray-600 text-sm mb-4">{user?.email || 'Geen email'}</p>
           <button className="px-4 py-1 bg-primary-light border border-primary rounded-lg text-white text-sm font-medium">
             Beheerder
           </button>

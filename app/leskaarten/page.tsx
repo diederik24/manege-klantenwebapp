@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import BottomNav from '@/components/BottomNav'
 import { supabaseClient } from '@/lib/supabase-client'
+import { useRouter } from 'next/navigation'
 
 interface Leskaart {
   id: string
@@ -33,6 +34,7 @@ export default function LeskaartenPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<any>(null)
+  const router = useRouter()
 
   useEffect(() => {
     async function checkAuth() {
@@ -46,8 +48,7 @@ export default function LeskaartenPage() {
       const { data: { session } } = await supabaseClient.auth.getSession()
       
       if (!session) {
-        setError('Je bent niet ingelogd. Log eerst in via Supabase Auth.')
-        setLoading(false)
+        router.push('/login')
         return
       }
 
