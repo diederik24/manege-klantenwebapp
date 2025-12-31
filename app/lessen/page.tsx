@@ -111,7 +111,10 @@ export default function LessenPage() {
         let memberId: string | null = null
         
         if (memberIdData && typeof memberIdData === 'object' && 'klant_id' in memberIdData) {
-          memberId = memberIdData.klant_id
+          const klantId = (memberIdData as { klant_id: string }).klant_id
+          if (typeof klantId === 'string') {
+            memberId = klantId
+          }
         }
 
         if (!memberId) {
