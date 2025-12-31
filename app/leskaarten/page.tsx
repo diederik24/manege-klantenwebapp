@@ -70,8 +70,8 @@ export default function LeskaartenPage() {
         .rpc('get_my_leskaart_overzicht')
         .single()
 
-      if (!overzichtError && overzichtData) {
-        setOverzicht(overzichtData)
+      if (!overzichtError && overzichtData && typeof overzichtData === 'object' && 'klant_id' in overzichtData) {
+        setOverzicht(overzichtData as LeskaartOverzicht)
       }
 
       // Haal individuele leskaarten op via RPC functie
@@ -82,7 +82,12 @@ export default function LeskaartenPage() {
         console.error('Error fetching leskaarten:', leskaartenError)
         setError(`Fout bij ophalen leskaarten: ${leskaartenError.message}`)
       } else {
-        setLeskaarten(leskaartenData || [])
+        // Type guard voor leskaarten array
+        if (Array.isArray(leskaartenData)) {
+          setLeskaarten(leskaartenData as Leskaart[])
+        } else {
+          setLeskaarten([])
+        }
       }
     } catch (err: any) {
       console.error('Error:', err)
