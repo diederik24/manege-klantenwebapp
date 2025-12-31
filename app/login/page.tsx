@@ -230,7 +230,8 @@ export default function LoginPage() {
               id="rememberMe"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 text-primary bg-white border-gray-300 rounded focus:ring-primary focus:ring-2 checked:bg-primary checked:border-primary"
+              className="w-4 h-4 rounded border-gray-300 focus:ring-primary focus:ring-2"
+              style={{ accentColor: '#e72d81' }}
             />
             <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
               Wachtwoord onthouden
