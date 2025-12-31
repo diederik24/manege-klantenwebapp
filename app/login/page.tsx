@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(true) // Standaard aan
+  const [showCodeInput, setShowCodeInput] = useState(false)
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -136,21 +138,72 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { error: magicLinkError } = await supabaseClient.auth.signInWithOtp({
+      // Stuur OTP code naar email
+      const { error: otpError } = await supabaseClient.auth.signInWithOtp({
         email,
         options: {
+          shouldCreateUser: false, // Maak geen nieuwe gebruiker aan
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
 
-      if (magicLinkError) throw magicLinkError
+      if (otpError) throw otpError
 
+      // Toon code input veld
+      setShowCodeInput(true)
       setError('')
-      alert('Check je email! We hebben een inloglink gestuurd naar ' + email)
-      setEmail('')
+      // Geen alert meer, toon alleen het code veld
     } catch (err: any) {
-      console.error('Magic link error:', err)
-      setError(err.message || 'Fout bij versturen van inloglink. Probeer het opnieuw.')
+      console.error('OTP error:', err)
+      setError(err.message || 'Fout bij versturen van inlogcode. Probeer het opnieuw.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    if (!supabaseClient || !email || !code) {
+      setError('Vul alle velden in')
+      setLoading(false)
+      return
+    }
+
+    try {
+      // Verifieer de OTP code
+      const { data, error: verifyError } = await supabaseClient.auth.verifyOtp({
+        email,
+        token: code,
+        type: 'email',
+      })
+
+      if (verifyError) throw verifyError
+
+      if (data?.user) {
+        console.log('Login successful with code, redirecting to /home')
+        
+        // Als "onthouden" is aangevinkt, sla email op
+        if (rememberMe && typeof window !== 'undefined') {
+          localStorage.setItem('remembered_email', email)
+          localStorage.setItem('remember_me', 'true')
+        } else if (typeof window !== 'undefined') {
+          localStorage.removeItem('remembered_email')
+          localStorage.removeItem('remember_me')
+        }
+        
+        // Wacht even zodat de session is opgeslagen
+        await new Promise(resolve => setTimeout(resolve, 100))
+        router.push('/home')
+        router.refresh()
+      } else {
+        throw new Error('Geen gebruiker data ontvangen')
+      }
+    } catch (err: any) {
+      console.error('Verify code error:', err)
+      setError(err.message || 'Ongeldige code. Probeer het opnieuw.')
     } finally {
       setLoading(false)
     }
@@ -193,9 +246,47 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Password Field */}
-          <div className="mb-4">
-            <label className="block text-black font-medium mb-2">Wachtwoord</label>
+          {/* Code Input Field - alleen zichtbaar na "Stuur login code" */}
+          {showCodeInput && (
+            <div className="mb-4">
+              <label className="block text-black font-medium mb-2">Inlogcode</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-center text-2xl tracking-widest font-mono"
+                  required
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                />
+              </div>
+              <p className="text-sm text-gray-600 mt-2 text-center">
+                Voer de 6-cijferige code in die we naar je email hebben gestuurd
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCodeInput(false)
+                  setCode('')
+                }}
+                className="text-sm text-primary mt-2 hover:underline w-full text-center"
+              >
+                Code opnieuw versturen
+              </button>
+            </div>
+          )}
+
+          {/* Password Field - verberg als code input zichtbaar is */}
+          {!showCodeInput && (
+            <div className="mb-4">
+              <label className="block text-black font-medium mb-2">Wachtwoord</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,6 +320,7 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -253,23 +345,36 @@ export default function LoginPage() {
           </div>
 
           {/* Login Buttons */}
-          <div className="flex gap-3 mb-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Laden...' : 'Inloggen'}
-            </button>
-            <button
-              type="button"
-              onClick={handleMagicLinkLogin}
-              disabled={loading || !email}
-              className="flex-1 bg-white border-2 border-primary text-primary py-3 rounded-lg font-semibold hover:bg-pink-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Stuur login code
-            </button>
-          </div>
+          {!showCodeInput ? (
+            <div className="flex gap-3 mb-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Laden...' : 'Inloggen'}
+              </button>
+              <button
+                type="button"
+                onClick={handleMagicLinkLogin}
+                disabled={loading || !email}
+                className="flex-1 bg-white border-2 border-primary text-primary py-3 rounded-lg font-semibold hover:bg-pink-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Verzenden...' : 'Stuur login code'}
+              </button>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={handleVerifyCode}
+                disabled={loading || code.length !== 6}
+                className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Verifiëren...' : 'Verifieer code'}
+              </button>
+            </div>
+          )}
 
           {/* Forgot Password Link */}
           <button
