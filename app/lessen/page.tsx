@@ -101,14 +101,20 @@ export default function LessenPage() {
       console.log('Session found:', session.user.email)
 
       try {
-        // Haal member_id op via customer_accounts
-        const { data: accountData } = await supabaseClient
-          .from('customer_accounts')
-          .select('member_id')
-          .eq('auth_user_id', session.user.id)
+        // Haal member_id op via klantappversie1.get_current_member_id() RPC
+        // Of gebruik direct de view/function
+        // Voor nu gebruiken we een workaround: haal member_id op via een RPC call
+        const { data: memberIdData, error: memberIdError } = await supabaseClient
+          .rpc('get_my_leskaart_overzicht')
           .single()
 
-        if (!accountData?.member_id) {
+        let memberId: string | null = null
+        
+        if (memberIdData && typeof memberIdData === 'object' && 'klant_id' in memberIdData) {
+          memberId = memberIdData.klant_id
+        }
+
+        if (!memberId) {
           console.log('No member_id found for user')
           setLessons([])
           setLoading(false)
@@ -129,7 +135,7 @@ export default function LessenPage() {
               instructor
             )
           `)
-          .eq('member_id', accountData.member_id)
+          .eq('member_id', memberId)
 
         if (participantsError) {
           console.error('Error fetching lessons:', participantsError)
