@@ -63,7 +63,7 @@ export default function LoginPage() {
       const { error: magicLinkError } = await supabaseClient.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/home`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
 
