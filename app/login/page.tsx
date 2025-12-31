@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseClient } from '@/lib/supabase-client'
 
@@ -8,9 +8,21 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true) // Standaard aan
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  // Laad opgeslagen email bij mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const rememberedEmail = localStorage.getItem('remembered_email')
+      if (rememberedEmail) {
+        setEmail(rememberedEmail)
+        setRememberMe(true)
+      }
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,6 +39,11 @@ export default function LoginPage() {
       const { data, error: signInError } = await supabaseClient.auth.signInWithPassword({
         email,
         password,
+        options: {
+          // Als "onthouden" is aangevinkt, gebruik persistent session
+          // Supabase slaat standaard al de session op in localStorage
+          // We kunnen hier eventueel de session duration aanpassen
+        }
       })
 
       if (signInError) {
@@ -36,6 +53,14 @@ export default function LoginPage() {
 
       if (data?.user) {
         console.log('Login successful, redirecting to /home')
+        
+        // Als "onthouden" is aangevinkt, sla email op in localStorage voor gemak
+        if (rememberMe && typeof window !== 'undefined') {
+          localStorage.setItem('remembered_email', email)
+        } else if (typeof window !== 'undefined') {
+          localStorage.removeItem('remembered_email')
+        }
+        
         // Wacht even zodat de session is opgeslagen
         await new Promise(resolve => setTimeout(resolve, 100))
         router.push('/home')
@@ -197,6 +222,20 @@ export default function LoginPage() {
               {error}
             </div>
           )}
+
+          {/* Remember Me Checkbox */}
+          <div className="mb-4 flex items-center">
+            <input
+              type="checkbox"
+              id="rememberMe"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary focus:ring-2"
+            />
+            <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
+              Wachtwoord onthouden
+            </label>
+          </div>
 
           {/* Login Buttons */}
           <div className="flex gap-3 mb-4">
