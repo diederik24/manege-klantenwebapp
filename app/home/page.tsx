@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import BottomNav from '@/components/BottomNav'
 import Link from 'next/link'
-import { getCustomerData } from '@/lib/api'
-import { getApiKey } from '@/lib/auth'
+import { supabaseClient } from '@/lib/supabase-client'
 import { useRouter } from 'next/navigation'
 
 interface CustomerData {
@@ -38,21 +37,81 @@ export default function HomePage() {
 
   useEffect(() => {
     async function fetchData() {
+      if (!supabaseClient) {
+        setError('Supabase client niet geconfigureerd')
+        setLoading(false)
+        return
+      }
+
       try {
-        const apiKey = getApiKey()
-        if (!apiKey) {
+        // Check of gebruiker is ingelogd
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession()
+        
+        if (sessionError || !session) {
           router.push('/login')
           return
         }
 
-        const data = await getCustomerData(apiKey)
-        setCustomerData(data)
-      } catch (err: any) {
-        if (err.message.includes('API key') || err.message.includes('Invalid')) {
-          router.push('/login')
-        } else {
-          setError(err.message || 'Fout bij ophalen data')
+        // Haal leskaart overzicht op via RPC
+        const { data: overzichtData, error: overzichtError } = await supabaseClient
+          .rpc('get_my_leskaart_overzicht')
+          .single()
+
+        if (overzichtError) {
+          console.error('Error fetching leskaart overzicht:', overzichtError)
+          // Als er geen leskaarten zijn, toon lege data
+          setCustomerData({
+            customer: {
+              name: 'Klant',
+              email: session.user.email || '',
+              balance: 0
+            },
+            lessons: [],
+            leskaarten: [],
+            totaalResterendeLessen: 0
+          })
+          setLoading(false)
+          return
         }
+
+        // Haal leskaarten op
+        const { data: leskaartenData, error: leskaartenError } = await supabaseClient
+          .rpc('get_my_leskaarten')
+
+        const leskaarten = (leskaartenData || []).map((k: any) => ({
+          id: k.id,
+          resterendeLessen: k.resterende_lessen || 0,
+          totaalLessen: k.totaal_lessen || 0,
+          eindDatum: k.eind_datum || ''
+        }))
+
+        // Haal klant naam op (via member_id uit overzicht)
+        let customerName = 'Klant'
+        if (overzichtData?.klant_id) {
+          const { data: memberData } = await supabaseClient
+            .from('members')
+            .select('name, email')
+            .eq('id', overzichtData.klant_id)
+            .single()
+          
+          if (memberData) {
+            customerName = memberData.name
+          }
+        }
+
+        setCustomerData({
+          customer: {
+            name: customerName,
+            email: session.user.email || '',
+            balance: 0
+          },
+          lessons: [], // TODO: Haal lessen op als die beschikbaar zijn
+          leskaarten: leskaarten,
+          totaalResterendeLessen: overzichtData?.totaal_resterende_lessen || 0
+        })
+      } catch (err: any) {
+        console.error('Error fetching data:', err)
+        setError(err.message || 'Fout bij ophalen data')
       } finally {
         setLoading(false)
       }

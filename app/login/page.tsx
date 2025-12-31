@@ -29,10 +29,19 @@ export default function LoginPage() {
         password,
       })
 
-      if (signInError) throw signInError
+      if (signInError) {
+        console.error('Sign in error:', signInError)
+        throw signInError
+      }
 
-      if (data.user) {
+      if (data?.user) {
+        console.log('Login successful, redirecting to /home')
+        // Wacht even zodat de session is opgeslagen
+        await new Promise(resolve => setTimeout(resolve, 100))
         router.push('/home')
+        router.refresh() // Force refresh om session te laden
+      } else {
+        throw new Error('Geen gebruiker data ontvangen')
       }
     } catch (err: any) {
       console.error('Login error:', err)
