@@ -44,20 +44,29 @@ export default function LeskaartenPage() {
         return
       }
 
+      // Wacht even zodat de sessie kan worden geladen
+      await new Promise(resolve => setTimeout(resolve, 100))
+
       // Check of gebruiker is ingelogd
-      const { data: { session } } = await supabaseClient.auth.getSession()
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession()
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+      }
       
       if (!session) {
+        console.log('No session found, redirecting to login')
         router.push('/login')
         return
       }
 
+      console.log('Session found:', session.user.email)
       setUser(session.user)
       await fetchLeskaarten()
     }
 
     checkAuth()
-  }, [])
+  }, [router])
 
   async function fetchLeskaarten() {
     if (!supabaseClient) return

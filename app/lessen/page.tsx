@@ -83,12 +83,22 @@ export default function LessenPage() {
         return
       }
 
-      const { data: { session } } = await supabaseClient.auth.getSession()
+      // Wacht even zodat de sessie kan worden geladen
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession()
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+      }
       
       if (!session) {
+        console.log('No session found, redirecting to login')
         router.push('/login')
         return
       }
+
+      console.log('Session found:', session.user.email)
 
       try {
         const apiKey = getApiKey()
