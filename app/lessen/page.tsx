@@ -162,22 +162,6 @@ export default function LessenPage() {
           })
         
         setLessons(transformedLessons)
-        
-        // Transform API lessons to our format
-        const transformedLessons: Lesson[] = data.lessons.map((les: any) => ({
-          id: les.id || les.name,
-          name: les.name,
-          day: les.day,
-          time: les.time,
-          instructor: les.instructor,
-          date: les.date,
-          location: les.location || 'Binnenbak',
-          type: les.type || 'Groepsles',
-          participants: les.participants || '0/0 deelnemers',
-          enrolled: les.enrolled || false
-        }))
-        
-        setLessons(transformedLessons)
       } catch (err: any) {
         if (err.message.includes('API key') || err.message.includes('Invalid')) {
           router.push('/login')
