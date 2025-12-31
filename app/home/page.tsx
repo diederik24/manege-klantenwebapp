@@ -6,6 +6,20 @@ import Link from 'next/link'
 import { supabaseClient } from '@/lib/supabase-client'
 import { useRouter } from 'next/navigation'
 
+interface LeskaartOverzicht {
+  klant_id: string
+  aantal_actieve_leskaarten: number
+  totaal_resterende_lessen: number
+  totaal_lessen: number
+  totaal_gebruikte_lessen: number
+  eerste_start_datum: string | null
+  laatste_eind_datum: string | null
+}
+
+function isLeskaartOverzicht(data: any): data is LeskaartOverzicht {
+  return data && typeof data === 'object' && 'klant_id' in data
+}
+
 interface CustomerData {
   customer: {
     name: string
@@ -57,7 +71,7 @@ export default function HomePage() {
           .rpc('get_my_leskaart_overzicht')
           .single()
 
-        if (overzichtError) {
+        if (overzichtError || !isLeskaartOverzicht(overzichtData)) {
           console.error('Error fetching leskaart overzicht:', overzichtError)
           // Als er geen leskaarten zijn, toon lege data
           setCustomerData({
@@ -78,16 +92,18 @@ export default function HomePage() {
         const { data: leskaartenData, error: leskaartenError } = await supabaseClient
           .rpc('get_my_leskaarten')
 
-        const leskaarten = (leskaartenData || []).map((k: any) => ({
-          id: k.id,
-          resterendeLessen: k.resterende_lessen || 0,
-          totaalLessen: k.totaal_lessen || 0,
-          eindDatum: k.eind_datum || ''
-        }))
+        const leskaarten = Array.isArray(leskaartenData) 
+          ? leskaartenData.map((k: any) => ({
+              id: k.id,
+              resterendeLessen: k.resterende_lessen || 0,
+              totaalLessen: k.totaal_lessen || 0,
+              eindDatum: k.eind_datum || ''
+            }))
+          : []
 
         // Haal klant naam op (via member_id uit overzicht)
         let customerName = 'Klant'
-        if (overzichtData?.klant_id) {
+        if (overzichtData.klant_id) {
           const { data: memberData } = await supabaseClient
             .from('members')
             .select('name, email')
@@ -107,7 +123,7 @@ export default function HomePage() {
           },
           lessons: [], // TODO: Haal lessen op als die beschikbaar zijn
           leskaarten: leskaarten,
-          totaalResterendeLessen: overzichtData?.totaal_resterende_lessen || 0
+          totaalResterendeLessen: overzichtData.totaal_resterende_lessen || 0
         })
       } catch (err: any) {
         console.error('Error fetching data:', err)
