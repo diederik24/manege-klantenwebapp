@@ -5,6 +5,10 @@ import { supabase } from '@/lib/supabase';
 async function validateApiKeyAndGetMemberId(
   apiKey: string
 ): Promise<{ isValid: boolean; memberId?: string }> {
+  if (!supabase) {
+    return { isValid: false };
+  }
+  
   const { data, error } = await supabase
     .from('api_keys')
     .select('member_id, is_active, expires_at')
@@ -26,10 +30,12 @@ async function validateApiKeyAndGetMemberId(
   }
 
   // Update last_used_at
-  await supabase
-    .from('api_keys')
-    .update({ last_used_at: new Date().toISOString() })
-    .eq('api_key', apiKey);
+  if (supabase) {
+    await supabase
+      .from('api_keys')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('api_key', apiKey);
+  }
 
   return { isValid: true, memberId: data.member_id };
 }
@@ -49,10 +55,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Check Supabase configuratie
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!supabaseUrl || !supabaseServiceRoleKey || !supabase) {
+    if (!supabase) {
       console.error('Missing Supabase environment variables');
       return NextResponse.json(
         { 
@@ -116,6 +119,16 @@ export async function GET(request: NextRequest) {
     const familyMemberIds = (familyMembersForQuery || []).map(fm => fm.id);
 
     // Fetch lessons voor deze klant (zowel direct als via gezinsleden)
+    if (!supabase) {
+      return NextResponse.json(
+        { 
+          error: 'Server configuration error',
+          code: 'MISSING_ENV_VARS'
+        },
+        { status: 500, headers }
+      );
+    }
+
     let lessonParticipantsQuery = supabase
       .from('lesson_participants')
       .select(`
