@@ -73,9 +73,39 @@ export default function LoginPage() {
     }
   }
 
-  const handleDemoLogin = async (role: 'klant' | 'instructeur' | 'beheerder') => {
-    // Demo login functionaliteit - kan later worden uitgebreid
-    setError('Demo login functionaliteit komt binnenkort beschikbaar')
+  const handleMagicLinkLogin = async () => {
+    if (!email) {
+      setError('Vul eerst je email adres in')
+      return
+    }
+
+    if (!supabaseClient) {
+      setError('Supabase client niet geconfigureerd')
+      return
+    }
+
+    setError('')
+    setLoading(true)
+
+    try {
+      const { error: magicLinkError } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (magicLinkError) throw magicLinkError
+
+      setError('')
+      alert('Check je email! We hebben een inloglink gestuurd naar ' + email)
+      setEmail('')
+    } catch (err: any) {
+      console.error('Magic link error:', err)
+      setError(err.message || 'Fout bij versturen van inloglink. Probeer het opnieuw.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -89,10 +119,7 @@ export default function LoginPage() {
           <h2 className="text-primary text-sm font-bold uppercase tracking-wide mb-2">
             MANEGE DUIKSE HOEF
           </h2>
-          <h1 className="text-3xl font-bold text-black mb-2">Welkom terug</h1>
-          <p className="text-gray-600 text-sm text-center">
-            Log in om je lessen te beheren
-          </p>
+          <h1 className="text-3xl font-bold text-black mb-2">Welkom</h1>
         </div>
 
         {/* Login Form Card */}
@@ -161,14 +188,24 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Login Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-          >
-            {loading ? 'Laden...' : 'Inloggen'}
-          </button>
+          {/* Login Buttons */}
+          <div className="flex gap-3 mb-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Laden...' : 'Inloggen'}
+            </button>
+            <button
+              type="button"
+              onClick={handleMagicLinkLogin}
+              disabled={loading || !email}
+              className="flex-1 bg-white border-2 border-primary text-primary py-3 rounded-lg font-semibold hover:bg-pink-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Stuur login code
+            </button>
+          </div>
 
           {/* Forgot Password Link */}
           <button
@@ -179,55 +216,6 @@ export default function LoginPage() {
             Wachtwoord vergeten?
           </button>
         </form>
-
-        {/* Demo Login Section */}
-        <div className="mb-6">
-          <p className="text-sm text-gray-600 mb-3 text-center">Demo: Snel inloggen als</p>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('klant')}
-              className="flex-1 bg-white rounded-xl p-4 shadow-md hover:shadow-lg transition flex flex-col items-center"
-            >
-              <svg className="w-8 h-8 text-primary mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="text-sm font-medium text-black">Klant</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('instructeur')}
-              className="flex-1 bg-white rounded-xl p-4 shadow-md hover:shadow-lg transition flex flex-col items-center"
-            >
-              <svg className="w-8 h-8 text-primary mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              <span className="text-sm font-medium text-black">Instructeur</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('beheerder')}
-              className="flex-1 bg-white rounded-xl p-4 shadow-md hover:shadow-lg transition flex flex-col items-center"
-            >
-              <svg className="w-8 h-8 text-primary mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-sm font-medium text-black">Beheerder</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Rating Section */}
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
-            <span className="text-lg font-bold text-black">4.5 / 5</span>
-          </div>
-          <p className="text-sm text-gray-600">Beoordeeld door onze ruiters</p>
-        </div>
       </div>
     </div>
   )
