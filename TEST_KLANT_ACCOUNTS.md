@@ -147,3 +147,5 @@ SELECT * FROM klantappversie1.my_leskaarten;
 3. ⬜ Voeg error handling toe voor niet-gekoppelde accounts
 4. ⬜ Voeg automatische redirect toe als niet ingelogd
 
+
+

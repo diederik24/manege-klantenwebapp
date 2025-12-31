@@ -58,3 +58,5 @@ Om de OTP email eruit te laten zien zoals in de screenshot (met grote code in pl
 - Test de template door een OTP code te versturen
 - De code wordt automatisch vervangen door `{{ .Token }}`
 
+
+

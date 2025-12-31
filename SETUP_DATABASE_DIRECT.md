@@ -69,3 +69,6 @@ Je zou nu JSON moeten krijgen met de klantdata direct uit de database!
 **Error: "Customer not found"**
 - Controleer of de API key gekoppeld is aan een klant in de `api_keys` tabel
 
+
+
+

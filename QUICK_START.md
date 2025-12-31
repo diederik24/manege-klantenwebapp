@@ -67,3 +67,5 @@ git push -u origin main
 Zie `SETUP_GITHUB.md` voor uitgebreide instructies.
 Zie `DEPLOYMENT.md` voor Vercel deployment details.
 
+
+

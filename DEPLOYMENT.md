@@ -167,3 +167,5 @@ Voor vragen of problemen, check:
 - Vercel Documentation
 - Supabase Documentation
 
+
+

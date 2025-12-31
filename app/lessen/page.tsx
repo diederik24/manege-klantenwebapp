@@ -48,6 +48,13 @@ const getWeekInfo = (dates: any[]) => {
   }
 }
 
+// Helper function to format time from "HH:MM:SS" to "HH:MM"
+const formatTime = (time: string): string => {
+  if (!time) return ''
+  // Remove seconds if present (format: HH:MM:SS -> HH:MM)
+  return time.split(':').slice(0, 2).join(':')
+}
+
 interface Lesson {
   id: string
   name: string
@@ -304,8 +311,8 @@ export default function LessenPage() {
         ) : (
           filteredLessons.map((lesson) => {
             const timeParts = lesson.time?.split('-') || ['', '']
-            const startTime = timeParts[0]?.trim() || ''
-            const endTime = timeParts[1]?.trim() || ''
+            const startTime = formatTime(timeParts[0]?.trim() || '')
+            const endTime = formatTime(timeParts[1]?.trim() || '')
             const isEnrolled = lesson.enrolled || false
             
             return (

@@ -6,10 +6,25 @@ import Link from 'next/link'
 import { supabaseClient } from '@/lib/supabase-client'
 import { useRouter } from 'next/navigation'
 
+interface LeskaartOverzicht {
+  klant_id: string
+  aantal_actieve_leskaarten: number
+  totaal_resterende_lessen: number
+  totaal_lessen: number
+  totaal_gebruikte_lessen: number
+  eerste_start_datum: string | null
+  laatste_eind_datum: string | null
+}
+
+function isLeskaartOverzicht(data: any): data is LeskaartOverzicht {
+  return data && typeof data === 'object' && 'klant_id' in data
+}
+
 export default function ProfielPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
+  const [customerName, setCustomerName] = useState<string>('')
 
   useEffect(() => {
     async function checkAuth() {
@@ -35,6 +50,36 @@ export default function ProfielPage() {
 
       console.log('Session found:', session.user.email)
       setUser(session.user)
+
+      // Haal klantnaam op via RPC functie
+      try {
+        const { data: overzichtData, error: overzichtError } = await supabaseClient
+          .rpc('get_my_leskaart_overzicht')
+          .single()
+
+        if (!overzichtError && isLeskaartOverzicht(overzichtData) && overzichtData.klant_id) {
+          const { data: memberData } = await supabaseClient
+            .from('members')
+            .select('name')
+            .eq('id', overzichtData.klant_id)
+            .single()
+          
+          if (memberData?.name) {
+            setCustomerName(memberData.name)
+          } else {
+            // Fallback naar email prefix als naam niet gevonden wordt
+            setCustomerName(session.user.email?.split('@')[0] || 'Gebruiker')
+          }
+        } else {
+          // Fallback naar email prefix als geen leskaart overzicht
+          setCustomerName(session.user.email?.split('@')[0] || 'Gebruiker')
+        }
+      } catch (err) {
+        console.error('Error fetching customer name:', err)
+        // Fallback naar email prefix bij error
+        setCustomerName(session.user.email?.split('@')[0] || 'Gebruiker')
+      }
+
       setLoading(false)
     }
 
@@ -58,18 +103,34 @@ export default function ProfielPage() {
       </div>
 
       {/* Profile Card */}
-      <div className="mx-4 mb-6 bg-white rounded-2xl p-6 shadow-lg">
-        <div className="flex flex-col items-center">
-          <div className="w-24 h-24 bg-primary rounded-full flex items-center justify-center mb-4">
-            <span className="text-white text-4xl font-bold">B</span>
+      <div 
+        className="mx-4 mb-6 rounded-2xl p-6 shadow-lg relative overflow-hidden"
+        style={{
+          backgroundImage: 'url(/hero-banner.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        {/* Gradient overlay for readability */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(135deg, rgba(231, 45, 129, 0.75) 0%, rgba(194, 24, 91, 0.7) 50%, rgba(90, 15, 46, 0.8) 100%)',
+          }}
+        />
+        
+        {/* Content */}
+        <div className="flex flex-col items-center relative z-10">
+          <div className="w-24 h-24 bg-primary rounded-full flex items-center justify-center mb-4 shadow-lg">
+            <span className="text-white text-4xl font-bold">
+              {customerName ? customerName.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || 'G')}
+            </span>
           </div>
-          <h2 className="text-xl font-bold text-black mb-1">
-            {user?.email?.split('@')[0] || 'Gebruiker'}
+          <h2 className="text-xl font-bold text-white mb-1 drop-shadow-sm">
+            {customerName || user?.email?.split('@')[0] || 'Gebruiker'}
           </h2>
-          <p className="text-gray-600 text-sm mb-4">{user?.email || 'Geen email'}</p>
-          <button className="px-4 py-1 bg-primary-light border border-primary rounded-lg text-white text-sm font-medium">
-            Beheerder
-          </button>
+          <p className="text-white text-sm drop-shadow-sm font-medium">{user?.email || 'Geen email'}</p>
         </div>
       </div>
 
@@ -140,7 +201,7 @@ export default function ProfielPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <span className="text-black">admin@manege.nl</span>
+            <span className="text-black">info@manegeduiksehoef.nl</span>
           </div>
 
           <div className="flex items-center gap-3 bg-white rounded-xl p-4 shadow-md">
@@ -149,7 +210,7 @@ export default function ProfielPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </div>
-            <span className="text-black">06-77777777</span>
+            <span className="text-black">+31 620685310</span>
           </div>
         </div>
       </div>

@@ -222,7 +222,7 @@ export default function HomePage() {
       {/* Welcome Section */}
       <div className="px-4 pt-6 pb-6">
         <p className="text-gray-600 text-sm mb-1">Welkom terug,</p>
-        <h1 className="text-3xl font-bold text-black">{customerData.customer.name} 🐴</h1>
+        <h1 className="text-3xl font-bold text-black">{customerData.customer.name}</h1>
       </div>
 
       {/* Lesson Card */}

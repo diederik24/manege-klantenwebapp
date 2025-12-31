@@ -259,16 +259,16 @@ export default function LoginPage() {
                 <input
                   type="text"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="000000"
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                  placeholder="00000000"
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-center text-2xl tracking-widest font-mono"
                   required
-                  maxLength={6}
-                  pattern="[0-9]{6}"
+                  maxLength={8}
+                  pattern="[0-9]{8}"
                 />
               </div>
               <p className="text-sm text-gray-600 mt-2 text-center">
-                Voer de 6-cijferige code in die we naar je email hebben gestuurd
+                Voer de code in die we naar je email hebben gestuurd
               </p>
               <button
                 type="button"
@@ -368,7 +368,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={handleVerifyCode}
-                disabled={loading || code.length !== 6}
+                disabled={loading || code.length !== 8}
                 className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Verifiëren...' : 'Verifieer code'}
