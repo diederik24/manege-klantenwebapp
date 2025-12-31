@@ -13,12 +13,21 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  // Laad opgeslagen email bij mount
+  // Laad opgeslagen email en wachtwoord bij mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const rememberedEmail = localStorage.getItem('remembered_email')
+      const rememberedPassword = localStorage.getItem('remembered_password')
+      const shouldRemember = localStorage.getItem('remember_me') === 'true'
+      
       if (rememberedEmail) {
         setEmail(rememberedEmail)
+      }
+      
+      if (rememberedPassword && shouldRemember) {
+        setPassword(rememberedPassword)
+        setRememberMe(true)
+      } else if (shouldRemember) {
         setRememberMe(true)
       }
     }
@@ -54,11 +63,16 @@ export default function LoginPage() {
       if (data?.user) {
         console.log('Login successful, redirecting to /home')
         
-        // Als "onthouden" is aangevinkt, sla email op in localStorage voor gemak
+        // Als "onthouden" is aangevinkt, sla email en wachtwoord op
         if (rememberMe && typeof window !== 'undefined') {
           localStorage.setItem('remembered_email', email)
+          localStorage.setItem('remembered_password', password)
+          localStorage.setItem('remember_me', 'true')
         } else if (typeof window !== 'undefined') {
+          // Verwijder opgeslagen gegevens als "onthouden" is uitgezet
           localStorage.removeItem('remembered_email')
+          localStorage.removeItem('remembered_password')
+          localStorage.removeItem('remember_me')
         }
         
         // Wacht even zodat de session is opgeslagen
