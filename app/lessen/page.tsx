@@ -7,28 +7,40 @@ import { getApiKey } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { supabaseClient } from '@/lib/supabase-client'
 
-// Helper function to get week dates
+// Helper function to get week dates (4 weeks = 28 days)
 const getWeekDates = () => {
   const today = new Date()
   const dayOfWeek = today.getDay() // 0 = Sunday, 1 = Monday, etc.
   const monday = new Date(today)
   monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+  monday.setHours(0, 0, 0, 0) // Reset time to start of day
   
   const weekDates = []
   const dayNames = ['ZO', 'MA', 'DI', 'WO', 'DO', 'VR', 'ZA']
+  const dayNamesFull = ['Zondag', 'Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag']
   const monthNames = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december']
   
-  for (let i = 0; i < 7; i++) {
+  // Supabase day_of_week: 0 = Monday, 1 = Tuesday, 2 = Wednesday, etc.
+  // JavaScript getDay(): 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, etc.
+  // Convert JS day to Supabase day_of_week: Sunday (0) -> 6, Monday (1) -> 0, Tuesday (2) -> 1, Wednesday (3) -> 2, etc.
+  const jsToSupabaseDay = (jsDay: number) => jsDay === 0 ? 6 : jsDay - 1
+  
+  // Generate 4 weeks (28 days)
+  for (let i = 0; i < 28; i++) {
     const date = new Date(monday)
     date.setDate(monday.getDate() + i)
-    const dayIndex = date.getDay()
+    const dayIndex = date.getDay() // JavaScript: 0=Sunday, 1=Monday, etc.
+    const supabaseDayOfWeek = jsToSupabaseDay(dayIndex) // Convert to Supabase format
+    const dateKey = date.toISOString().split('T')[0] // Unique date key (YYYY-MM-DD)
     weekDates.push({
       day: dayNames[dayIndex],
       date: date.getDate(),
       month: monthNames[date.getMonth()],
-      full: `${dayNames[dayIndex].toLowerCase()}dag ${date.getDate()} ${monthNames[date.getMonth()]}`,
+      full: `${dayNamesFull[dayIndex]} ${date.getDate()} ${monthNames[date.getMonth()]}`,
       isToday: date.toDateString() === today.toDateString(),
-      dateObj: date
+      dateObj: date,
+      dateKey: dateKey, // Unique identifier for the date
+      supabaseDayOfWeek: supabaseDayOfWeek // Store Supabase day_of_week for easy filtering
     })
   }
   
@@ -59,6 +71,7 @@ interface Lesson {
   id: string
   name: string
   day: string
+  dayOfWeek: number // 0 = Maandag, 1 = Dinsdag, etc. (Supabase format)
   time: string
   instructor: string
   date: string
@@ -70,11 +83,12 @@ interface Lesson {
 
 export default function LessenPage() {
   const weekDates = useMemo(() => getWeekDates(), [])
-  const todayDate = useMemo(() => {
+  const todayDateKey = useMemo(() => {
     const today = new Date()
-    return today.getDate()
+    today.setHours(0, 0, 0, 0)
+    return today.toISOString().split('T')[0] // YYYY-MM-DD format
   }, [])
-  const [selectedDate, setSelectedDate] = useState(todayDate)
+  const [selectedDate, setSelectedDate] = useState(todayDateKey)
   const weekInfo = useMemo(() => getWeekInfo(weekDates), [weekDates])
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [loading, setLoading] = useState(true)
@@ -157,13 +171,15 @@ export default function LessenPage() {
           .filter((lp: any) => lp.recurring_lessons)
           .map((lp: any) => {
             const lesson = lp.recurring_lessons
+            console.log(`Lesson: ${lesson.name}, day_of_week: ${lesson.day_of_week}, day: ${days[lesson.day_of_week]}`)
             return {
               id: lesson.id,
               name: lesson.name,
               day: days[lesson.day_of_week] || 'Onbekend',
+              dayOfWeek: lesson.day_of_week, // 0 = Maandag in Supabase
               time: lesson.time || '',
               instructor: lesson.instructor || '',
-              date: new Date().toISOString(), // Placeholder - zou moeten worden berekend op basis van day_of_week
+              date: new Date().toISOString(), // Placeholder
               location: 'Binnenbak',
               type: lesson.type || 'Groepsles',
               participants: '0/0 deelnemers',
@@ -171,6 +187,7 @@ export default function LessenPage() {
             }
           })
         
+        console.log(`Total lessons loaded: ${transformedLessons.length}`)
         setLessons(transformedLessons)
       } catch (err: any) {
         if (err.message.includes('API key') || err.message.includes('Invalid')) {
@@ -214,16 +231,14 @@ export default function LessenPage() {
     }
   }
 
-  // Filter lessons for selected date
-  const selectedDateObj = weekDates.find(d => d.date === selectedDate)?.dateObj
-  const filteredLessons = selectedDateObj 
+  // Filter lessons for selected date based on day_of_week
+  const selectedWeekDate = weekDates.find(d => d.dateKey === selectedDate)
+  const filteredLessons = selectedWeekDate 
     ? lessons.filter(lesson => {
-        try {
-          const lessonDate = new Date(lesson.date)
-          return lessonDate.toDateString() === selectedDateObj.toDateString()
-        } catch {
-          return false
-        }
+        // Use the supabaseDayOfWeek we stored in weekDates
+        const match = lesson.dayOfWeek === selectedWeekDate.supabaseDayOfWeek
+        console.log(`Filtering: Selected ${selectedWeekDate.full} (Supabase day: ${selectedWeekDate.supabaseDayOfWeek}), Lesson "${lesson.name}" dayOfWeek: ${lesson.dayOfWeek}, Match: ${match}`)
+        return match
       })
     : lessons
 
@@ -268,20 +283,29 @@ export default function LessenPage() {
       <div className="bg-primary text-white px-4 pt-4 pb-6 rounded-b-3xl">
         <h1 className="text-3xl font-bold mb-4">{weekInfo}</h1>
 
-        {/* Date Selector */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {weekDates.map((date) => {
-            const isSelected = date.date === selectedDate
-            return (
-              <button
-                key={`${date.date}-${date.month}`}
-                onClick={() => setSelectedDate(date.date)}
-                className={`flex-shrink-0 px-4 py-3 rounded-xl font-medium transition-all relative ${
-                  isSelected
-                    ? 'bg-white text-black'
-                    : 'bg-primary-light text-white'
-                }`}
-              >
+        {/* Date Selector - Always show 7 days, scrollable for more weeks */}
+        <div className="relative">
+          <div 
+            className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide"
+            style={{ 
+              scrollbarWidth: 'none', 
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
+            {weekDates.map((date) => {
+              const isSelected = date.dateKey === selectedDate
+              return (
+                <button
+                  key={date.dateKey}
+                  onClick={() => setSelectedDate(date.dateKey)}
+                  className={`flex-shrink-0 px-4 py-3 rounded-xl font-medium transition-all relative snap-start ${
+                    isSelected
+                      ? 'bg-white text-black'
+                      : 'bg-primary-light text-white'
+                  }`}
+                  style={{ minWidth: '70px' }}
+                >
                 <div className="text-center">
                   <div className={`text-xs ${isSelected ? 'text-black' : 'text-white'}`}>{date.day}</div>
                   <div className={`text-lg font-bold ${isSelected ? 'text-black' : 'text-white'}`}>{date.date}</div>
@@ -295,13 +319,14 @@ export default function LessenPage() {
               </button>
             )
           })}
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="px-4 pt-4">
         <p className="text-gray-600 text-sm mb-4">
-          {weekDates.find(d => d.date === selectedDate)?.full || ''}
+          {weekDates.find(d => d.dateKey === selectedDate)?.full || ''}
         </p>
 
         {filteredLessons.length === 0 ? (
@@ -337,6 +362,20 @@ export default function LessenPage() {
                     </div>
 
                     <div className="space-y-2 mb-4">
+                      <div className="flex items-center gap-2 text-gray-600 text-sm">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>
+                          {selectedWeekDate ? (() => {
+                            const date = selectedWeekDate.dateObj
+                            const day = String(date.getDate()).padStart(2, '0')
+                            const month = String(date.getMonth() + 1).padStart(2, '0')
+                            const year = String(date.getFullYear()).slice(-2)
+                            return `${day}-${month}-${year}`
+                          })() : ''}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />

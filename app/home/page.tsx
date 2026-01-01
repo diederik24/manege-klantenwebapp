@@ -246,15 +246,18 @@ export default function HomePage() {
 
       {/* History and Notifications */}
       <div className="px-4 mb-6 flex gap-4">
-        <Link href="/historie" className="flex-1 bg-white rounded-2xl p-4 shadow-md">
+        <div className="flex-1 bg-white rounded-2xl p-4 shadow-md relative overflow-hidden">
+          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-white/95 backdrop-blur-sm z-10 pointer-events-none">
+            <span className="text-primary font-bold text-sm">In ontwikkeling</span>
+          </div>
           <div className="w-12 h-12 bg-primary-light rounded-full flex items-center justify-center mb-3">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
-          <h3 className="font-bold text-black mb-1">Historie</h3>
+          <h3 className="font-bold text-black mb-1">Lessen</h3>
           <p className="text-gray-600 text-sm">Bekijk je lessen</p>
-        </Link>
+        </div>
 
         <Link href="/notificaties" className="flex-1 bg-white rounded-2xl p-4 shadow-md">
           <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3">
