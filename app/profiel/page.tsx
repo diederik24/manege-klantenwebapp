@@ -25,6 +25,7 @@ export default function ProfielPage() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [customerName, setCustomerName] = useState<string>('')
+  const [showNotificationsPopup, setShowNotificationsPopup] = useState(false)
 
   useEffect(() => {
     async function checkAuth() {
@@ -138,9 +139,9 @@ export default function ProfielPage() {
       <div className="px-4 mb-6">
         <h3 className="text-lg font-bold text-black mb-4">Instellingen</h3>
         <div className="space-y-1">
-          <Link
-            href="/notificaties"
-            className="flex items-center justify-between bg-white rounded-xl p-4 shadow-md"
+          <button
+            onClick={() => setShowNotificationsPopup(true)}
+            className="flex items-center justify-between bg-white rounded-xl p-4 shadow-md w-full text-left"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-light rounded-full flex items-center justify-center">
@@ -153,7 +154,7 @@ export default function ProfielPage() {
             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-          </Link>
+          </button>
 
           <Link
             href="/wachtwoord"
@@ -242,6 +243,45 @@ export default function ProfielPage() {
           </button>
         </div>
       </div>
+
+      {/* Notificaties Popup */}
+      {showNotificationsPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4" onClick={() => setShowNotificationsPopup(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Kleurrijke header */}
+            <div className="bg-gradient-to-r from-primary to-pink-600 -m-6 mb-4 p-6 pb-8">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Notificaties</h2>
+                <button
+                  onClick={() => setShowNotificationsPopup(false)}
+                  className="text-white/80 hover:text-white transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mb-4 shadow-lg">
+                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <p className="text-gray-700 text-center text-lg font-medium">Geen notificaties op dit moment</p>
+              <p className="text-gray-500 text-center text-sm mt-2">Je ontvangt hier meldingen over je lessen en updates</p>
+            </div>
+
+            <button
+              onClick={() => setShowNotificationsPopup(false)}
+              className="w-full bg-gradient-to-r from-primary to-pink-600 text-white py-3 rounded-lg font-semibold hover:from-primary-dark hover:to-pink-700 transition shadow-md mt-4"
+            >
+              Sluiten
+            </button>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </div>

@@ -146,7 +146,17 @@ export default function WachtwoordPage() {
   return (
     <div className="min-h-screen bg-white pb-20">
       <div className="bg-primary text-white px-4 pt-4 pb-6 rounded-b-3xl">
-        <h1 className="text-3xl font-bold mb-2">Wachtwoord wijzigen</h1>
+        <div className="flex items-center gap-4 mb-2">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/20 transition"
+          >
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-3xl font-bold flex-1">Wachtwoord wijzigen</h1>
+        </div>
         <p className="text-white/80 text-sm">Voer je huidige en nieuwe wachtwoord in</p>
       </div>
 

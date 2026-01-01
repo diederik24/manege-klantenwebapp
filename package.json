@@ -8,12 +8,16 @@
     "start": "next start",
     "lint": "next lint",
     "export-lessons": "node scripts/export-lessons.js",
-    "enroll-elvira": "node scripts/enroll-elvira.js"
+    "enroll-elvira": "node scripts/enroll-elvira.js",
+    "send-invitation": "node scripts/send-invitation-email.js",
+    "send-invitation-gmail": "node scripts/send-invitation-gmail.js",
+    "send-invitation-edge": "node scripts/send-invitation-via-edge-function.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.87.1",
     "dotenv": "^17.2.3",
     "next": "14.0.4",
+    "nodemailer": "^6.10.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "xlsx": "^0.18.5"
