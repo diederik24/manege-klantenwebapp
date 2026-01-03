@@ -13,6 +13,11 @@ export default function LoginPage() {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showForgotPasswordPopup, setShowForgotPasswordPopup] = useState(false)
+  const [showForgotPasswordSteps, setShowForgotPasswordSteps] = useState(false)
+  const [forgotPasswordCode, setForgotPasswordCode] = useState('')
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
   const router = useRouter()
 
   // Laad opgeslagen email en wachtwoord bij mount
@@ -92,8 +97,17 @@ export default function LoginPage() {
     }
   }
 
-  const handleForgotPassword = async () => {
-    if (!email) {
+  const handleForgotPassword = () => {
+    setShowForgotPasswordPopup(true)
+    setShowForgotPasswordSteps(false) // Start met uitleg
+    setForgotPasswordEmail(email) // Gebruik het ingevulde email adres
+    setCodeSent(false)
+    setForgotPasswordCode('')
+    setError('')
+  }
+
+  const handleSendForgotPasswordCode = async () => {
+    if (!forgotPasswordEmail) {
       setError('Vul eerst je email adres in')
       return
     }
@@ -107,17 +121,60 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { error: resetError } = await supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      const { error: otpError } = await supabaseClient.auth.signInWithOtp({
+        email: forgotPasswordEmail,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       })
 
-      if (resetError) throw resetError
+      if (otpError) throw otpError
 
+      setCodeSent(true)
       setError('')
-      alert('Check je email voor een wachtwoord reset link!')
     } catch (err: any) {
-      console.error('Reset password error:', err)
-      setError(err.message || 'Fout bij versturen van reset link.')
+      console.error('OTP error:', err)
+      setError(err.message || 'Fout bij versturen van inlogcode. Probeer het opnieuw.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyForgotPasswordCode = async () => {
+    if (!forgotPasswordCode || forgotPasswordCode.length !== 8) {
+      setError('Voer de 8-cijferige code in')
+      return
+    }
+
+    if (!supabaseClient) {
+      setError('Supabase client niet geconfigureerd')
+      return
+    }
+
+    setError('')
+    setLoading(true)
+
+    try {
+      const { data, error: verifyError } = await supabaseClient.auth.verifyOtp({
+        email: forgotPasswordEmail,
+        token: forgotPasswordCode,
+        type: 'email',
+      })
+
+      if (verifyError) throw verifyError
+
+      if (data?.user) {
+        // Redirect naar profiel om wachtwoord te wijzigen
+        await new Promise(resolve => setTimeout(resolve, 100))
+        router.push('/profiel')
+        router.refresh()
+      } else {
+        throw new Error('Geen gebruiker data ontvangen')
+      }
+    } catch (err: any) {
+      console.error('Verify code error:', err)
+      setError(err.message || 'Ongeldige code. Probeer het opnieuw.')
     } finally {
       setLoading(false)
     }
@@ -386,6 +443,185 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
+
+      {/* Forgot Password Popup */}
+      {showForgotPasswordPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4" onClick={() => {
+          setShowForgotPasswordPopup(false)
+          setShowForgotPasswordSteps(false)
+          setCodeSent(false)
+          setForgotPasswordCode('')
+          setError('')
+        }}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-black">Wachtwoord vergeten?</h2>
+              <button
+                onClick={() => {
+                  setShowForgotPasswordPopup(false)
+                  setShowForgotPasswordSteps(false)
+                  setCodeSent(false)
+                  setForgotPasswordCode('')
+                  setError('')
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {!showForgotPasswordSteps ? (
+              // Uitleg scherm
+              <div>
+                <div className="mb-6">
+                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+                    <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-black mb-3 text-center">Hoe log je in zonder wachtwoord?</h3>
+                  <p className="text-gray-600 text-center mb-6">
+                    Geen probleem! Je kunt inloggen met een code die we naar je email sturen.
+                  </p>
+                </div>
+
+                <div className="space-y-4 mb-6">
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">
+                      1
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-black mb-1">Stuur login code</h4>
+                      <p className="text-sm text-gray-600">Vul je email adres in en klik op "Stuur login code". We sturen je een 8-cijferige code naar je email.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">
+                      2
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-black mb-1">Kijk in je mail</h4>
+                      <p className="text-sm text-gray-600">Check je email inbox voor de 8-cijferige inlogcode die we hebben gestuurd.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">
+                      3
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-black mb-1">Voer code in om in te loggen</h4>
+                      <p className="text-sm text-gray-600">Voer de code in die je in je email hebt ontvangen om in te loggen.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">
+                      4
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-black mb-1">Ga naar profiel om wachtwoord te veranderen</h4>
+                      <p className="text-sm text-gray-600">Na het inloggen ga je automatisch naar je profiel waar je je wachtwoord kunt wijzigen.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowForgotPasswordSteps(true)}
+                  className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition"
+                >
+                  Begrepen, stuur login code
+                </button>
+              </div>
+            ) : !codeSent ? (
+              // Code versturen scherm
+              <div>
+                <p className="text-gray-600 mb-4">
+                  Vul je email adres in en we sturen je een inlogcode. Na het inloggen kun je je wachtwoord wijzigen in je profiel.
+                </p>
+                
+                <div className="mb-4">
+                  <label className="block text-black font-medium mb-2">E-mailadres</label>
+                  <input
+                    type="email"
+                    value={forgotPasswordEmail}
+                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    placeholder="jouw@email.nl"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+
+                {error && (
+                  <div className="mb-4 bg-red-50 text-red-700 text-sm p-3 rounded-lg">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSendForgotPasswordCode}
+                  disabled={loading || !forgotPasswordEmail}
+                  className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Verzenden...' : 'Stuur login code'}
+                </button>
+              </div>
+            ) : (
+              // Code invoeren scherm
+              <div>
+                <p className="text-gray-600 mb-4">
+                  We hebben een inlogcode naar <strong>{forgotPasswordEmail}</strong> gestuurd. Kijk in je mail en voer de code hieronder in.
+                </p>
+
+                <div className="mb-4">
+                  <label className="block text-black font-medium mb-2">8-cijferige code</label>
+                  <input
+                    type="text"
+                    value={forgotPasswordCode}
+                    onChange={(e) => setForgotPasswordCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                    placeholder="00000000"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-center text-2xl tracking-widest font-mono"
+                    maxLength={8}
+                    pattern="[0-9]{8}"
+                  />
+                </div>
+
+                {error && (
+                  <div className="mb-4 bg-red-50 text-red-700 text-sm p-3 rounded-lg">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleVerifyForgotPasswordCode}
+                    disabled={loading || forgotPasswordCode.length !== 8}
+                    className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'Verifiëren...' : 'Inloggen met code'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCodeSent(false)
+                      setForgotPasswordCode('')
+                      setError('')
+                    }}
+                    className="flex-1 bg-white border-2 border-primary text-primary py-3 rounded-lg font-semibold hover:bg-pink-50 transition"
+                  >
+                    Code opnieuw versturen
+                  </button>
+                </div>
+
+                <p className="text-sm text-gray-500 mt-4 text-center">
+                  Na het inloggen ga je naar je profiel om je wachtwoord te wijzigen.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
