@@ -20,6 +20,12 @@ function isLeskaartOverzicht(data: any): data is LeskaartOverzicht {
   return data && typeof data === 'object' && 'klant_id' in data
 }
 
+interface CustomerNameData {
+  member_id: string
+  name: string
+  email: string
+}
+
 interface CustomerData {
   customer: {
     name: string
@@ -75,10 +81,10 @@ export default function HomePage() {
         try {
           // Methode 1: Probeer via get_my_customer_name RPC (direct naam + member_id)
           const { data: customerData, error: customerError } = await supabaseClient
-            .rpc('get_my_customer_name')
+            .rpc<CustomerNameData>('get_my_customer_name')
             .maybeSingle()
           
-          if (!customerError && customerData?.name) {
+          if (!customerError && customerData && customerData.name) {
             customerName = customerData.name
             memberId = customerData.member_id
             console.log('Klantnaam opgehaald via get_my_customer_name:', customerName)
