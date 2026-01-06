@@ -67,55 +67,111 @@ export default function HomePage() {
           return
         }
 
-        // Haal leskaart overzicht op via RPC
-        const { data: overzichtData, error: overzichtError } = await supabaseClient
-          .rpc('get_my_leskaart_overzicht')
-          .single()
-
-        if (overzichtError || !isLeskaartOverzicht(overzichtData)) {
-          console.error('Error fetching leskaart overzicht:', overzichtError)
-          // Als er geen leskaarten zijn, toon lege data
-          setCustomerData({
-            customer: {
-              name: 'Klant',
-              email: session.user.email || '',
-              balance: 0
-            },
-            lessons: [],
-            leskaarten: [],
-            totaalResterendeLessen: 0
-          })
-          setLoading(false)
-          return
+        // Haal ALTIJD eerst de klantnaam op uit members tabel (stambestand)
+        // Probeer verschillende methoden om member_id te vinden
+        let customerName = 'Klant'
+        let memberId = null
+        
+        try {
+          // Methode 1: Probeer via get_my_customer_name RPC (direct naam + member_id)
+          const { data: customerData, error: customerError } = await supabaseClient
+            .rpc('get_my_customer_name')
+            .maybeSingle()
+          
+          if (!customerError && customerData?.name) {
+            customerName = customerData.name
+            memberId = customerData.member_id
+            console.log('Klantnaam opgehaald via get_my_customer_name:', customerName)
+          } else {
+            // Methode 2: Probeer via get_my_leskaart_overzicht (geeft klant_id terug)
+            console.log('get_my_customer_name gaf geen resultaat, probeer get_my_leskaart_overzicht')
+            const { data: overzichtData, error: overzichtError } = await supabaseClient
+              .rpc('get_my_leskaart_overzicht')
+              .maybeSingle()
+            
+            if (!overzichtError && overzichtData?.klant_id) {
+              memberId = overzichtData.klant_id
+              console.log('Member ID gevonden via get_my_leskaart_overzicht:', memberId)
+              
+              // Haal klantnaam op uit members tabel
+              const { data: memberData, error: memberError } = await supabaseClient
+                .from('members')
+                .select('name, email')
+                .eq('id', memberId)
+                .single()
+              
+              if (!memberError && memberData?.name) {
+                customerName = memberData.name
+                console.log('Klantnaam opgehaald uit members tabel:', customerName)
+              } else {
+                console.error('Fout bij ophalen member data uit stambestand:', memberError)
+              }
+            } else {
+              console.error('Fout bij ophalen klant_id via get_my_leskaart_overzicht:', overzichtError)
+            }
+          }
+        } catch (nameError) {
+          console.error('Fout bij ophalen klantnaam:', nameError)
         }
 
-        // Haal leskaarten op
-        const { data: leskaartenData, error: leskaartenError } = await supabaseClient
-          .rpc('get_my_leskaarten')
+        // Haal leskaarten op - probeer eerst via RPC, anders direct via member_id
+        let leskaarten: Array<{
+          id: string
+          resterendeLessen: number
+          totaalLessen: number
+          eindDatum: string
+        }> = []
+        let totaalResterendeLessen = 0
+        let overzichtData: any = null
 
-        const leskaarten = Array.isArray(leskaartenData) 
-          ? leskaartenData.map((k: any) => ({
+        // Probeer eerst via RPC functie
+        const { data: overzichtDataRPC, error: overzichtError } = await supabaseClient
+          .rpc('get_my_leskaart_overzicht')
+          .maybeSingle() // maybeSingle() geeft null terug in plaats van error als er geen data is
+        
+        if (!overzichtError && isLeskaartOverzicht(overzichtDataRPC)) {
+          overzichtData = overzichtDataRPC
+          totaalResterendeLessen = overzichtData.totaal_resterende_lessen || 0
+          
+          // Haal leskaarten op via RPC
+          const { data: leskaartenData, error: leskaartenError } = await supabaseClient
+            .rpc('get_my_leskaarten')
+
+          if (!leskaartenError && Array.isArray(leskaartenData)) {
+            leskaarten = leskaartenData.map((k: any) => ({
               id: k.id,
               resterendeLessen: k.resterende_lessen || 0,
               totaalLessen: k.totaal_lessen || 0,
               eindDatum: k.eind_datum || ''
             }))
-          : []
-
-        // Haal klant naam op (via member_id uit overzicht)
-        let customerName = 'Klant'
-        if (overzichtData.klant_id) {
-          const { data: memberData } = await supabaseClient
-            .from('members')
-            .select('name, email')
-            .eq('id', overzichtData.klant_id)
-            .single()
-          
-          if (memberData) {
-            customerName = memberData.name
           }
+        } else if (memberId) {
+          // Fallback: haal leskaarten direct op via member_id
+          console.log('RPC functie gaf geen data, haal leskaarten direct op via member_id:', memberId)
+          const { data: directLeskaarten, error: directError } = await supabaseClient
+            .from('leskaarten')
+            .select('id, totaal_lessen, gebruikte_lessen, resterende_lessen, eind_datum, status')
+            .eq('klant_id', memberId)
+            .eq('status', 'actief')
+          
+          if (!directError && Array.isArray(directLeskaarten)) {
+            console.log('Direct leskaarten gevonden:', directLeskaarten.length)
+            leskaarten = directLeskaarten.map((k: any) => ({
+              id: k.id,
+              resterendeLessen: k.resterende_lessen || 0,
+              totaalLessen: k.totaal_lessen || 0,
+              eindDatum: k.eind_datum || ''
+            }))
+            
+            totaalResterendeLessen = leskaarten.reduce((sum, k) => sum + k.resterendeLessen, 0)
+          } else {
+            console.error('Fout bij direct ophalen leskaarten:', directError)
+          }
+        } else {
+          console.log('Geen member_id beschikbaar, kan leskaarten niet ophalen')
         }
 
+        console.log('Setting customer data with name:', customerName, 'leskaarten:', leskaarten.length)
         setCustomerData({
           customer: {
             name: customerName,
@@ -124,7 +180,7 @@ export default function HomePage() {
           },
           lessons: [], // TODO: Haal lessen op als die beschikbaar zijn
           leskaarten: leskaarten,
-          totaalResterendeLessen: overzichtData.totaal_resterende_lessen || 0
+          totaalResterendeLessen: totaalResterendeLessen
         })
       } catch (err: any) {
         console.error('Error fetching data:', err)
@@ -164,18 +220,6 @@ export default function HomePage() {
   const totaalLessen = customerData.leskaarten.reduce((sum, kaart) => sum + kaart.totaalLessen, 0)
   const resterend = customerData.totaalResterendeLessen
   const percentage = totaalLessen > 0 ? (resterend / totaalLessen) * 100 : 0
-  const eersteLeskaart = customerData.leskaarten[0]
-  const eindDatum = eersteLeskaart?.eindDatum || 'Onbekend'
-
-  // Format date helper
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
-    } catch {
-      return dateString
-    }
-  }
 
   // Komende lessen (volgende 2)
   const komendeLessen = customerData.lessons
@@ -236,13 +280,12 @@ export default function HomePage() {
             </svg>
           </div>
         </div>
-        <div className="mb-4">
+        <div>
           <p className="text-white text-3xl font-bold mb-2">{resterend} / {totaalLessen} lessen</p>
           <div className="w-full bg-white/30 rounded-full h-3">
             <div className="bg-white rounded-full h-3" style={{ width: `${percentage}%` }}></div>
           </div>
         </div>
-        <p className="text-white text-sm">Geldig tot: {formatDate(eindDatum)}</p>
       </div>
 
       {/* History and Notifications */}

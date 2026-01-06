@@ -52,28 +52,41 @@ export default function ProfielPage() {
       console.log('Session found:', session.user.email)
       setUser(session.user)
 
-      // Haal klantnaam op via RPC functie
+      // Haal klantnaam op uit members tabel (stambestand) via RPC
       try {
-        const { data: overzichtData, error: overzichtError } = await supabaseClient
-          .rpc('get_my_leskaart_overzicht')
-          .single()
-
-        if (!overzichtError && isLeskaartOverzicht(overzichtData) && overzichtData.klant_id) {
-          const { data: memberData } = await supabaseClient
-            .from('members')
-            .select('name')
-            .eq('id', overzichtData.klant_id)
-            .single()
+        // Methode 1: Probeer via get_my_customer_name RPC (direct naam uit stambestand)
+        const { data: customerData, error: customerError } = await supabaseClient
+          .rpc('get_my_customer_name')
+          .maybeSingle()
+        
+        if (!customerError && customerData?.name) {
+          setCustomerName(customerData.name)
+          console.log('Klantnaam opgehaald via get_my_customer_name:', customerData.name)
+        } else {
+          // Methode 2: Fallback via get_my_leskaart_overzicht
+          console.log('get_my_customer_name gaf geen resultaat, probeer get_my_leskaart_overzicht')
+          const { data: overzichtData, error: overzichtError } = await supabaseClient
+            .rpc('get_my_leskaart_overzicht')
+            .maybeSingle()
           
-          if (memberData?.name) {
-            setCustomerName(memberData.name)
+          if (!overzichtError && overzichtData?.klant_id) {
+            const { data: memberData, error: memberError } = await supabaseClient
+              .from('members')
+              .select('name')
+              .eq('id', overzichtData.klant_id)
+              .single()
+            
+            if (!memberError && memberData?.name) {
+              setCustomerName(memberData.name)
+              console.log('Klantnaam opgehaald uit members tabel:', memberData.name)
+            } else {
+              // Fallback naar email prefix als naam niet gevonden wordt
+              setCustomerName(session.user.email?.split('@')[0] || 'Gebruiker')
+            }
           } else {
-            // Fallback naar email prefix als naam niet gevonden wordt
+            // Fallback naar email prefix als geen account koppeling
             setCustomerName(session.user.email?.split('@')[0] || 'Gebruiker')
           }
-        } else {
-          // Fallback naar email prefix als geen leskaart overzicht
-          setCustomerName(session.user.email?.split('@')[0] || 'Gebruiker')
         }
       } catch (err) {
         console.error('Error fetching customer name:', err)
