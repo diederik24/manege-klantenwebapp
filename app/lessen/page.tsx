@@ -94,6 +94,9 @@ export default function LessenPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState<string | null>(null)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [cancelLessonId, setCancelLessonId] = useState<string | null>(null)
+  const [cancellations, setCancellations] = useState<Record<string, { afgemeld_op: string, les_datum: string }>>({})
   const router = useRouter()
 
   useEffect(() => {
@@ -156,7 +159,8 @@ export default function LessenPage() {
               day_of_week,
               time,
               type,
-              instructor
+              instructor,
+              max_participants
             )
           `)
           .eq('member_id', memberId)
@@ -165,12 +169,34 @@ export default function LessenPage() {
           console.error('Error fetching lessons:', participantsError)
         }
 
+        // Haal voor elke les het aantal deelnemers op
+        const lessonIds = (lessonParticipants || [])
+          .filter((lp: any) => lp.recurring_lessons)
+          .map((lp: any) => lp.recurring_lessons.id)
+
+        let participantsCountMap: Record<string, number> = {}
+        if (lessonIds.length > 0) {
+          const { data: allParticipants, error: countError } = await supabaseClient
+            .from('lesson_participants')
+            .select('recurring_lesson_id')
+            .in('recurring_lesson_id', lessonIds)
+
+          if (!countError && allParticipants) {
+            // Tel deelnemers per les
+            allParticipants.forEach((p: any) => {
+              participantsCountMap[p.recurring_lesson_id] = (participantsCountMap[p.recurring_lesson_id] || 0) + 1
+            })
+          }
+        }
+
         // Format lessons
         const days = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag']
         const transformedLessons: Lesson[] = (lessonParticipants || [])
           .filter((lp: any) => lp.recurring_lessons)
           .map((lp: any) => {
             const lesson = lp.recurring_lessons
+            const participantCount = participantsCountMap[lesson.id] || 0
+            const maxParticipants = lesson.max_participants || 0
             console.log(`Lesson: ${lesson.name}, day_of_week: ${lesson.day_of_week}, day: ${days[lesson.day_of_week]}`)
             return {
               id: lesson.id,
@@ -182,13 +208,32 @@ export default function LessenPage() {
               date: new Date().toISOString(), // Placeholder
               location: 'Binnenbak',
               type: lesson.type || 'Groepsles',
-              participants: '0/0 deelnemers',
+              participants: `${participantCount}/${maxParticipants} deelnemers`,
               enrolled: true
             }
           })
         
         console.log(`Total lessons loaded: ${transformedLessons.length}`)
         setLessons(transformedLessons)
+
+        // Haal afmeldingen op voor deze gebruiker
+        const { data: cancellationsData, error: cancellationsError } = await supabaseClient
+          .from('lesson_cancellations')
+          .select('recurring_lesson_id, les_datum, afgemeld_op')
+          .eq('member_id', memberId)
+
+        if (!cancellationsError && cancellationsData) {
+          // Maak een map van les ID + datum -> afmelding info
+          const cancellationsMap: Record<string, { afgemeld_op: string, les_datum: string }> = {}
+          cancellationsData.forEach((cancel: any) => {
+            const key = `${cancel.recurring_lesson_id}-${cancel.les_datum}`
+            cancellationsMap[key] = {
+              afgemeld_op: cancel.afgemeld_op || cancel.created_at,
+              les_datum: cancel.les_datum
+            }
+          })
+          setCancellations(cancellationsMap)
+        }
       } catch (err: any) {
         if (err.message.includes('API key') || err.message.includes('Invalid')) {
           router.push('/login')
@@ -201,7 +246,7 @@ export default function LessenPage() {
     }
 
     fetchData()
-  }, [router])
+  }, [router, selectedDate])
 
   const handleLessonAction = async (lessonId: string, isEnrolled: boolean) => {
     if (!supabaseClient) {
@@ -216,15 +261,146 @@ export default function LessenPage() {
       return
     }
 
+    if (isEnrolled) {
+      // Toon bevestigingspopup voor afmelden
+      setCancelLessonId(lessonId)
+      setShowCancelConfirm(true)
+      return
+    }
+
+    // Aanmelden - direct uitvoeren
     setProcessing(lessonId)
     try {
-      // TODO: Implementeer lessen aanmelden/afmelden via Supabase
-      // Voor nu tonen we alleen een melding
-      alert(isEnrolled ? 'Afmelden functionaliteit komt binnenkort' : 'Aanmelden functionaliteit komt binnenkort')
+      // Haal member_id op
+      const { data: memberIdData } = await supabaseClient
+        .rpc('get_my_leskaart_overzicht')
+        .single()
+
+      let memberId: string | null = null
+      if (memberIdData && typeof memberIdData === 'object' && 'klant_id' in memberIdData) {
+        const klantId = (memberIdData as { klant_id: string }).klant_id
+        if (typeof klantId === 'string') {
+          memberId = klantId
+        }
+      }
+
+      if (!memberId) {
+        alert('Kon klant ID niet vinden')
+        return
+      }
+
+      // Aanmelden
+      const { error: enrollError } = await supabaseClient
+        .from('lesson_participants')
+        .insert({
+          member_id: memberId,
+          recurring_lesson_id: lessonId
+        })
+
+      if (enrollError) {
+        // Als al ingeschreven, negeer de error
+        if (!enrollError.message.includes('duplicate') && !enrollError.code?.includes('23505')) {
+          throw new Error(enrollError.message || 'Fout bij aanmelden')
+        }
+      }
+
+      alert('Je bent succesvol aangemeld voor deze les')
       
-      // Refresh data zou hier moeten gebeuren
-      // setLessons(transformedLessons)
+      // Refresh data
+      window.location.reload()
     } catch (err: any) {
+      console.error('Error:', err)
+      alert(err.message || 'Er is een fout opgetreden')
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!cancelLessonId || !supabaseClient) {
+      return
+    }
+
+    setProcessing(cancelLessonId)
+    try {
+      // Haal member_id op
+      const { data: memberIdData } = await supabaseClient
+        .rpc('get_my_leskaart_overzicht')
+        .single()
+
+      let memberId: string | null = null
+      if (memberIdData && typeof memberIdData === 'object' && 'klant_id' in memberIdData) {
+        const klantId = (memberIdData as { klant_id: string }).klant_id
+        if (typeof klantId === 'string') {
+          memberId = klantId
+        }
+      }
+
+      if (!memberId) {
+        alert('Kon klant ID niet vinden')
+        return
+      }
+
+      // Haal les informatie op
+      const { data: lessonData } = await supabaseClient
+        .from('recurring_lessons')
+        .select('*')
+        .eq('id', cancelLessonId)
+        .single()
+
+      if (!lessonData) {
+        alert('Les niet gevonden')
+        return
+      }
+
+      // Afmelden
+      const selectedWeekDate = weekDates.find(d => d.dateKey === selectedDate)
+      if (!selectedWeekDate) {
+        alert('Selecteer eerst een datum')
+        return
+      }
+
+      // Bereken de les datum op basis van de geselecteerde datum en day_of_week
+      const lesDatum = selectedWeekDate.dateKey
+      const lesTijd = formatTime(lessonData.time || '14:00')
+
+      // Sla afmelding op in lesson_cancellations tabel
+      const { error: cancelError } = await supabaseClient
+        .from('lesson_cancellations')
+        .insert({
+          member_id: memberId,
+          recurring_lesson_id: cancelLessonId,
+          les_datum: lesDatum,
+          les_tijd: lesTijd,
+          opmerking: 'Afgemeld via app',
+          afgemeld_op: new Date().toISOString()
+        })
+
+      if (cancelError) {
+        console.error('Error saving cancellation:', cancelError)
+        // Als tabel niet bestaat, probeer dan alleen de participant te verwijderen
+        // Verwijder participant uit lesson_participants
+        const { error: deleteError } = await supabaseClient
+          .from('lesson_participants')
+          .delete()
+          .eq('member_id', memberId)
+          .eq('recurring_lesson_id', cancelLessonId)
+
+        if (deleteError) {
+          throw new Error(deleteError.message || 'Fout bij afmelden')
+        }
+      }
+
+      // Sluit popup
+      setShowCancelConfirm(false)
+      setCancelLessonId(null)
+      
+      alert('Je bent succesvol afgemeld voor deze les')
+      
+      // Refresh data
+      window.location.reload()
+    } catch (err: any) {
+      console.error('Error:', err)
       alert(err.message || 'Er is een fout opgetreden')
     } finally {
       setProcessing(null)
@@ -295,6 +471,8 @@ export default function LessenPage() {
           >
             {weekDates.map((date) => {
               const isSelected = date.dateKey === selectedDate
+              // Check of er lessen zijn voor deze dag
+              const hasLessons = lessons.some(lesson => lesson.dayOfWeek === date.supabaseDayOfWeek)
               return (
                 <button
                   key={date.dateKey}
@@ -306,6 +484,10 @@ export default function LessenPage() {
                   }`}
                   style={{ minWidth: '70px' }}
                 >
+                  {/* Groene bovenkant als er lessen zijn */}
+                  {hasLessons && (
+                    <div className="absolute top-1 left-2 right-2 h-0.5 bg-green-500 rounded-full"></div>
+                  )}
                 <div className="text-center">
                   <div className={`text-xs ${isSelected ? 'text-black' : 'text-white'}`}>{date.day}</div>
                   <div className={`text-lg font-bold ${isSelected ? 'text-black' : 'text-white'}`}>{date.date}</div>
@@ -411,17 +593,53 @@ export default function LessenPage() {
                       )}
                     </div>
 
-                    <button
-                      onClick={() => handleLessonAction(lesson.id, isEnrolled)}
-                      disabled={processing === lesson.id}
-                      className={`w-full py-3 rounded-lg font-semibold transition-all focus:outline-none active:scale-95 disabled:opacity-50 ${
-                        isEnrolled
-                          ? 'bg-white text-primary border-2 border-primary hover:scale-[1.01] active:bg-white'
-                          : 'bg-primary text-white hover:bg-primary-dark hover:scale-[1.01] shadow-md active:bg-primary-dark'
-                      }`}
-                    >
-                      {processing === lesson.id ? 'Laden...' : isEnrolled ? 'Afmelden' : 'Aanmelden'}
-                    </button>
+                    {(() => {
+                      // Check of er een afmelding is voor deze les op de geselecteerde datum
+                      const selectedWeekDate = weekDates.find(d => d.dateKey === selectedDate)
+                      const cancellationKey = selectedWeekDate ? `${lesson.id}-${selectedWeekDate.dateKey}` : null
+                      const cancellation = cancellationKey ? cancellations[cancellationKey] : null
+                      const isCancelled = !!cancellation
+
+                      if (isCancelled && isEnrolled) {
+                        // Toon afmeld informatie
+                        const afgemeldDate = new Date(cancellation.afgemeld_op)
+                        const formattedDate = afgemeldDate.toLocaleDateString('nl-NL', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })
+                        const formattedTime = afgemeldDate.toLocaleTimeString('nl-NL', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+
+                        return (
+                          <div className="w-full py-3 px-4 rounded-lg bg-red-50 border-2 border-red-300">
+                            <div className="text-center">
+                              <div className="text-sm font-semibold text-red-700 mb-1">Afgemeld</div>
+                              <div className="text-xs text-red-600">
+                                {formattedDate} om {formattedTime}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      // Normale knop voor aanmelden/afmelden
+                      return (
+                        <button
+                          onClick={() => handleLessonAction(lesson.id, isEnrolled)}
+                          disabled={processing === lesson.id}
+                          className={`w-full py-3 rounded-lg font-semibold transition-all focus:outline-none active:scale-95 disabled:opacity-50 ${
+                            isEnrolled
+                              ? 'bg-white text-primary border-2 border-primary hover:scale-[1.01] active:bg-white'
+                              : 'bg-primary text-white hover:bg-primary-dark hover:scale-[1.01] shadow-md active:bg-primary-dark'
+                          }`}
+                        >
+                          {processing === lesson.id ? 'Laden...' : isEnrolled ? 'Afmelden' : 'Aanmelden'}
+                        </button>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
@@ -429,6 +647,56 @@ export default function LessenPage() {
           })
         )}
       </div>
+
+      {/* Cancel Confirmation Modal */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4" onClick={() => {
+          setShowCancelConfirm(false)
+          setCancelLessonId(null)
+        }}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-black">Bevestig afmelding</h2>
+              <button
+                onClick={() => {
+                  setShowCancelConfirm(false)
+                  setCancelLessonId(null)
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-600 mb-4">
+                Weet je zeker dat je je wilt afmelden voor deze les?
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowCancelConfirm(false)
+                  setCancelLessonId(null)
+                }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors"
+              >
+                Annuleren
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={processing !== null}
+                className="flex-1 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {processing ? 'Afmelden...' : 'Bevestig afmelding'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </div>

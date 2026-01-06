@@ -72,3 +72,6 @@ Je zou nu JSON moeten krijgen met de klantdata direct uit de database!
 
 
 
+
+
+

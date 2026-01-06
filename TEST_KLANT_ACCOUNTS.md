@@ -149,3 +149,6 @@ SELECT * FROM klantappversie1.my_leskaarten;
 
 
 
+
+
+
