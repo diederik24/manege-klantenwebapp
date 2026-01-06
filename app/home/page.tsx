@@ -96,8 +96,9 @@ export default function HomePage() {
               .rpc('get_my_leskaart_overzicht')
               .maybeSingle()
             
-            if (!overzichtError && overzichtData?.klant_id) {
-              memberId = overzichtData.klant_id
+            const typedOverzichtData = overzichtData as LeskaartOverzicht | null
+            if (!overzichtError && typedOverzichtData && typedOverzichtData.klant_id) {
+              memberId = typedOverzichtData.klant_id
               console.log('Member ID gevonden via get_my_leskaart_overzicht:', memberId)
               
               // Haal klantnaam op uit members tabel

@@ -76,11 +76,12 @@ export default function ProfielPage() {
             .rpc('get_my_leskaart_overzicht')
             .maybeSingle()
           
-          if (!overzichtError && overzichtData?.klant_id) {
+          const typedOverzichtData = overzichtData as LeskaartOverzicht | null
+          if (!overzichtError && typedOverzichtData && typedOverzichtData.klant_id) {
             const { data: memberData, error: memberError } = await supabaseClient
               .from('members')
               .select('name')
-              .eq('id', overzichtData.klant_id)
+              .eq('id', typedOverzichtData.klant_id)
               .single()
             
             if (!memberError && memberData?.name) {
