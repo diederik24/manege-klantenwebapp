@@ -62,12 +62,13 @@ export default function ProfielPage() {
       try {
         // Methode 1: Probeer via get_my_customer_name RPC (direct naam uit stambestand)
         const { data: customerData, error: customerError } = await supabaseClient
-          .rpc<CustomerNameData>('get_my_customer_name')
+          .rpc('get_my_customer_name')
           .maybeSingle()
         
-        if (!customerError && customerData && customerData.name) {
-          setCustomerName(customerData.name)
-          console.log('Klantnaam opgehaald via get_my_customer_name:', customerData.name)
+        const typedCustomerData = customerData as CustomerNameData | null
+        if (!customerError && typedCustomerData && typedCustomerData.name) {
+          setCustomerName(typedCustomerData.name)
+          console.log('Klantnaam opgehaald via get_my_customer_name:', typedCustomerData.name)
         } else {
           // Methode 2: Fallback via get_my_leskaart_overzicht
           console.log('get_my_customer_name gaf geen resultaat, probeer get_my_leskaart_overzicht')

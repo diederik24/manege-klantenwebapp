@@ -81,12 +81,13 @@ export default function HomePage() {
         try {
           // Methode 1: Probeer via get_my_customer_name RPC (direct naam + member_id)
           const { data: customerData, error: customerError } = await supabaseClient
-            .rpc<CustomerNameData>('get_my_customer_name')
+            .rpc('get_my_customer_name')
             .maybeSingle()
           
-          if (!customerError && customerData && customerData.name) {
-            customerName = customerData.name
-            memberId = customerData.member_id
+          const typedCustomerData = customerData as CustomerNameData | null
+          if (!customerError && typedCustomerData && typedCustomerData.name) {
+            customerName = typedCustomerData.name
+            memberId = typedCustomerData.member_id
             console.log('Klantnaam opgehaald via get_my_customer_name:', customerName)
           } else {
             // Methode 2: Probeer via get_my_leskaart_overzicht (geeft klant_id terug)
