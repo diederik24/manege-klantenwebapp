@@ -9,6 +9,7 @@ export default function BottomNav() {
   const navItems = [
     { href: '/home', label: 'Home', icon: 'home' },
     { href: '/lessen', label: 'Lessen', icon: 'calendar' },
+    { href: '/bezetting', label: 'Bezetting', icon: 'clock' },
     { href: '/profiel', label: 'Profiel', icon: 'profile' },
   ]
 
@@ -19,7 +20,7 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-      <div className="flex justify-around items-center h-16 px-2">
+      <div className="flex justify-around items-center h-16 px-1">
         {navItems.map((item) => {
           const active = isActive(item.href)
           return (
@@ -60,6 +61,21 @@ export default function BottomNav() {
                   />
                 </svg>
               )}
+              {item.icon === 'clock' && (
+                <svg
+                  className={`w-6 h-6 ${active ? 'text-primary' : 'text-gray-400'}`}
+                  fill={active ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              )}
               {item.icon === 'card' && (
                 <svg
                   className={`w-6 h-6 ${active ? 'text-primary' : 'text-gray-400'}`}
@@ -90,7 +106,7 @@ export default function BottomNav() {
                   />
                 </svg>
               )}
-              <span className={`text-xs mt-1 ${active ? 'font-medium' : ''}`}>
+              <span className={`text-[10px] mt-0.5 ${active ? 'font-medium' : ''}`}>
                 {item.label}
               </span>
             </Link>
